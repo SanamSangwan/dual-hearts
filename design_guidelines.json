@@ -1,0 +1,244 @@
+{
+  "app_name": "OurSpace",
+  "personality": "4 Tactile / Playful LIGHT",
+  "personality_one_liner": "A warm, touchable, and intimate space designed exclusively for two, turning small gestures into tangible, delightful moments.",
+  "color": {
+    "surface": {
+      "light": "#FFF9F8",
+      "dark": "#2C1A1E"
+    },
+    "onSurface": {
+      "light": "#42252B",
+      "dark": "#FCE8E9"
+    },
+    "surfaceSecondary": {
+      "light": "#FFEAEB",
+      "dark": "#3D242A"
+    },
+    "onSurfaceSecondary": {
+      "light": "#42252B",
+      "dark": "#FCE8E9"
+    },
+    "surfaceTertiary": {
+      "light": "#FBD5D9",
+      "dark": "#4D2C34"
+    },
+    "onSurfaceTertiary": {
+      "light": "#42252B",
+      "dark": "#FFF9F8"
+    },
+    "surfaceInverse": {
+      "light": "#42252B",
+      "dark": "#FCE8E9"
+    },
+    "onSurfaceInverse": {
+      "light": "#FFF9F8",
+      "dark": "#2C1A1E"
+    },
+    "brand": {
+      "light": "#E66A65",
+      "dark": "#E66A65"
+    },
+    "brandPrimary": {
+      "light": "#E66A65",
+      "dark": "#E66A65"
+    },
+    "onBrandPrimary": {
+      "light": "#FFFFFF",
+      "dark": "#FFFFFF"
+    },
+    "brandSecondary": {
+      "light": "#F4978E",
+      "dark": "#C85A56"
+    },
+    "onBrandSecondary": {
+      "light": "#42252B",
+      "dark": "#FFF9F8"
+    },
+    "brandTertiary": {
+      "light": "#FFD0C7",
+      "dark": "#592E2E"
+    },
+    "onBrandTertiary": {
+      "light": "#A83B3B",
+      "dark": "#FFD0C7"
+    },
+    "success": {
+      "light": "#6DB085",
+      "dark": "#6DB085"
+    },
+    "onSuccess": {
+      "light": "#FFFFFF",
+      "dark": "#000000"
+    },
+    "warning": {
+      "light": "#E3A04F",
+      "dark": "#E3A04F"
+    },
+    "onWarning": {
+      "light": "#FFFFFF",
+      "dark": "#000000"
+    },
+    "error": {
+      "light": "#D9534F",
+      "dark": "#D9534F"
+    },
+    "onError": {
+      "light": "#FFFFFF",
+      "dark": "#FFFFFF"
+    },
+    "info": {
+      "light": "#5B8FB9",
+      "dark": "#5B8FB9"
+    },
+    "onInfo": {
+      "light": "#FFFFFF",
+      "dark": "#FFFFFF"
+    },
+    "border": {
+      "light": "#F3D5D5",
+      "dark": "#4A2E33"
+    },
+    "borderStrong": {
+      "light": "#E8B8B8",
+      "dark": "#633D44"
+    },
+    "divider": {
+      "light": "#F3E3E3",
+      "dark": "#3B2228"
+    }
+  },
+  "typography": {
+    "displayFontFamily": "Quicksand",
+    "textFontFamily": "Nunito",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous spacing to let the pastel surfaces breathe. Group tactile buttons together but leave wide margins (xl) at screen edges to frame the content.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": "2",
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": "true",
+    "do's": [
+      "Apply to the bottom tab bar to let timeline cards blur underneath.",
+      "Use for sticky headers on the Timeline and Wardrobe scroll views.",
+      "Apply to the floating prompt input container in the Wardrobe Studio."
+    ],
+    "dont's": [
+      "Do not apply glass to the massive gesture buttons on the Home screen; they must feel solid and tactile.",
+      "Do not use on timeline item cards."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "haptics": {
+    "events": {
+      "primary_button_press": "impactMedium",
+      "gesture_send_kiss": "impactHeavy",
+      "gesture_send_heart": "impactLight",
+      "gesture_send_miss": "notificationSuccess",
+      "tab_change": "selection",
+      "wardrobe_generate": "impactMedium"
+    }
+  },
+  "screens": [
+    {
+      "name": "Auth / Pair",
+      "purpose": "Secure authentication and romantic pairing flow where two users link their accounts.",
+      "states": {
+        "loading": "Centered soft pulsing heart spinner.",
+        "empty": "N/A",
+        "error": "Soft blush error banner at the top with a clear 'Try Again' button."
+      },
+      "layout": "A full-bleed serene gradient or solid cream backdrop. Large inviting greeting. Inputs are soft, pill-shaped fields with no harsh borders. The 'Connect/Pair' CTA is a prominent, pill-shaped primary button sticky at the bottom. Include a subtle background image (romantic couple holding hands) with a 70%+ cream gradient scrim fading down so text remains readable."
+    },
+    {
+      "name": "Home (Today)",
+      "purpose": "A deeply tactile dashboard to instantly send a kiss, heart, or 'I miss you' to the partner.",
+      "states": {
+        "loading": "Skeleton avatars with soft pulsing animation.",
+        "empty": "N/A",
+        "error": "Retry button wrapped in a soft rounded container."
+      },
+      "layout": "Top section features the two users' avatars connected by a soft animated line or pulsing heart. The main body consists of three massive, chunky, pill-shaped or rounded-card buttons stacked vertically: 'Send a Kiss \ud83d\udc8b', 'Send a Heart \u2764\ufe0f', 'I Miss You \ud83e\udd7a'. These buttons should have a shadow tier 2 to feel highly pressable. When tapped, trigger localized micro-animations (e.g., floating hearts moving up the screen) and specific haptic feedback."
+    },
+    {
+      "name": "Timeline",
+      "purpose": "A shared, journal-like feed of all the gestures sent between the couple.",
+      "states": {
+        "loading": "Soft pulsing rounded cards.",
+        "empty": "A cute hand-drawn style illustration of an empty mailbox or two birds, saying 'Be the first to send some love today!' with a primary CTA to go back to Home.",
+        "error": "Playful error state 'Oops, we dropped the letters' with a reload button."
+      },
+      "layout": "Vertical scroll list. Each item is a softly rounded card (surfaceSecondary). Differentiate sender/receiver by slight alignment shifts (like chat bubbles) or distinct avatar positioning. Use clear typography for timestamps. The header should be frosted glass (expo-blur) so items softly vanish behind it as users scroll."
+    },
+    {
+      "name": "Wardrobe Studio",
+      "purpose": "AI photo editing space where users can upload their photo and generate new outfits via prompt.",
+      "states": {
+        "loading": "A shimmering placeholder where the image is being generated, with a 'Tailoring your outfit...' message.",
+        "empty": "A styled card prompting the user to 'Upload a photo to start the magic'.",
+        "error": "Error toast with a 'Try another prompt' button."
+      },
+      "layout": "A clean, creative studio layout. Top 50% of the screen is the primary image viewer (rounded corners, subtle shadow). Below it is a horizontal scroll of 'Recent Looks' (smaller thumbnail cards). A sticky frosted-glass floating dock at the bottom holds the prompt input field and a 'Generate' button, ensuring it's always reachable via the thumb zone."
+    }
+  ],
+  "images": {
+    "auth_background": {
+      "url": "https://images.unsplash.com/photo-1575388104683-e076ee9ccaa0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTN8MHwxfHNlYXJjaHwxfHxjb3VwbGUlMjBob2xkaW5nJTIwaGFuZHMlMjByb21hbnRpYyUyMHN1bnNldHxlbnwwfHx8fDE3ODU0MjE3MDJ8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "photography of man and woman holding hands each other while walking beside seashore"
+    },
+    "boyfriend_avatar": {
+      "url": "https://images.unsplash.com/photo-1757744705465-ea08b0ddc38a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzF8MHwxfHNlYXJjaHwxfHxoYW5kc29tZSUyMHlvdW5nJTIwbWFuJTIwc21pbGluZyUyMHBvcnRyYWl0fGVufDB8fHx8MTc4NTQyMTcwMnww&ixlib=rb-4.1.0&q=85",
+      "alt": "A smiling young man in a dark blue sweater"
+    },
+    "girlfriend_avatar": {
+      "url": "https://images.pexels.com/photos/719617/pexels-photo-719617.jpeg",
+      "alt": "Elegant close-up portrait of a smiling young woman with bangs"
+    },
+    "wardrobe_example": {
+      "url": "https://images.unsplash.com/photo-1612336307429-8a898d10e223?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTN8MHwxfHNlYXJjaHwxfHx3b21hbiUyMHdlYXJpbmclMjByZWQlMjBldmVuaW5nJTIwZHJlc3MlMjBmYXNoaW9ufGVufDB8fHx8MTc4NTQyMTcwMnww&ixlib=rb-4.1.0&q=85",
+      "alt": "woman in red long sleeve dress"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the Tactile / Playful LIGHT personality. Ensure buttons on the Home screen are massive, chunky, and very touchable (large hitSlop, large padding, radius lg or pill, shadow tier 2).",
+    "No pure white (#FFFFFF) backgrounds; use the warm 'surface' token (#FFF9F8) everywhere to maintain the romantic, intimate feel.",
+    "Implement micro-animations on the Home screen using react-native-reanimated. When a gesture button is pressed, trigger floating emojis (hearts/kisses) that travel upward, paired with the specific haptics provided in the JSON.",
+    "On the Auth screen, apply the `auth_background` image with a strict gradient-to-dark (or gradient-to-cream) scrim so the login form and text have guaranteed contrast.",
+    "For the Wardrobe Studio, keep the UI minimal around the image. The prompt input must be sticky above the keyboard using KeyboardAvoidingView, housed in a glassmorphic container.",
+    "Use Phosphor icons consistently (filled variant for active states, outlined for inactive if needed in tabs). DO NOT mix icon weights.",
+    "Ensure the bottom tabs have a glass effect (expo-blur) allowing the Timeline and Wardrobe content to softly blur underneath it."
+  ]
+}
