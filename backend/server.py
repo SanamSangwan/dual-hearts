@@ -15,6 +15,8 @@ import bcrypt
 import jwt
 import base64
 import asyncio
+from google import genai
+from google.genai import types
 
 # ---------- Env ----------
 ROOT_DIR = Path(__file__).parent
@@ -25,11 +27,12 @@ DB_NAME = os.environ["DB_NAME"]
 JWT_SECRET_KEY = os.environ["JWT_SECRET_KEY"]
 JWT_ALGORITHM = os.environ.get("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "43200"))
-EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 # ---------- DB ----------
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
+gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
 # ---------- App ----------
 app = FastAPI(title="OurSpace API")
@@ -180,6 +183,33 @@ async def leave_couple(user=Depends(get_current_user)):
 # ---------- Gestures ----------
 GESTURE_TYPES = {"kiss", "heart", "miss"}
 
+class LocationIn(BaseModel):
+    lat: float
+    lng: float
+
+@api_router.post("/location")
+async def update_location(body: LocationIn, user=Depends(get_current_user)):
+    await db.locations.update_one(
+        {"userId": user["id"]},
+        {"$set": {"lat": body.lat, "lng": body.lng, "updatedAt": now_utc().isoformat()}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+@api_router.get("/location/partner")
+async def get_partner_location(user=Depends(get_current_user)):
+    if not user.get("coupleId"):
+        raise HTTPException(400, "Not paired with a partner")
+    partner = await db.users.find_one(
+        {"coupleId": user["coupleId"], "id": {"$ne": user["id"]}}, {"_id": 0}
+    )
+    if not partner:
+        raise HTTPException(404, "No partner linked")
+    loc = await db.locations.find_one({"userId": partner["id"]}, {"_id": 0})
+    if not loc:
+        raise HTTPException(404, "Partner location not shared yet")
+    return loc
+
 @api_router.post("/gestures")
 async def send_gesture(body: GestureIn, user=Depends(get_current_user)):
     if body.type not in GESTURE_TYPES:
@@ -229,13 +259,12 @@ async def gesture_stats(user=Depends(get_current_user)):
 # ---------- Wardrobe (AI) ----------
 @api_router.post("/wardrobe/generate")
 async def wardrobe_generate(body: WardrobeIn, user=Depends(get_current_user)):
-    if not EMERGENT_LLM_KEY:
+    if not GEMINI_API_KEY:
         raise HTTPException(500, "AI key not configured")
     prompt = body.prompt.strip()
     if not prompt:
         raise HTTPException(400, "Prompt required")
 
-    # Clean base64 (in case a data URI slipped in)
     src_b64 = body.imageBase64
     if "," in src_b64 and src_b64.startswith("data:"):
         src_b64 = src_b64.split(",", 1)[1]
@@ -244,26 +273,24 @@ async def wardrobe_generate(body: WardrobeIn, user=Depends(get_current_user)):
     except Exception:
         raise HTTPException(400, "Invalid image data")
 
-    # Call Gemini Nano Banana via emergentintegrations
-    from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
-    session_id = f"wardrobe-{user['id']}-{uuid.uuid4().hex[:8]}"
-    chat = LlmChat(
-        api_key=EMERGENT_LLM_KEY,
-        session_id=session_id,
-        system_message="You are a fashion AI. Edit the given photo of a person, keeping their face, pose and identity intact, and change only their outfit as described.",
-    )
-    chat.with_model("gemini", "gemini-3.1-flash-image-preview").with_params(modalities=["image", "text"])
-
     edit_prompt = (
         f"Change the outfit of the person in this photo to: {prompt}. "
         "Preserve the person's face, hair, skin tone, pose, and background. "
         "Only change the clothing. Photorealistic result."
     )
-    msg = UserMessage(text=edit_prompt, file_contents=[ImageContent(src_b64)])
 
     try:
-        text_out, images = await asyncio.wait_for(
-            chat.send_message_multimodal_response(msg), timeout=120
+        response = await asyncio.wait_for(
+            asyncio.to_thread(
+                gemini_client.models.generate_content,
+                model="gemini-3.1-flash-image-preview",
+                contents=[
+                    edit_prompt,
+                    types.Part.from_bytes(data=base64.b64decode(src_b64), mime_type="image/jpeg"),
+                ],
+                config=types.GenerateContentConfig(response_modalities=["TEXT", "IMAGE"]),
+            ),
+            timeout=120,
         )
     except asyncio.TimeoutError:
         raise HTTPException(504, "AI generation timed out")
@@ -271,11 +298,15 @@ async def wardrobe_generate(body: WardrobeIn, user=Depends(get_current_user)):
         logger.exception("Wardrobe AI error")
         raise HTTPException(502, f"AI generation failed: {str(e)[:120]}")
 
-    if not images:
+    out_b64 = None
+    mime = "image/png"
+    for part in response.candidates[0].content.parts:
+        if part.inline_data:
+            out_b64 = base64.b64encode(part.inline_data.data).decode()
+            mime = part.inline_data.mime_type
+            break
+    if not out_b64:
         raise HTTPException(502, "AI did not return an image")
-
-    out_b64 = images[0]["data"]
-    mime = images[0].get("mime_type", "image/png")
 
     doc = {
         "id": str(uuid.uuid4()),
