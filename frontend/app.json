@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "frontend",
+    "name": "OurSpace",
     "slug": "frontend",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,15 +10,23 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.dualheartsapp.i36ij6"
+      "bundleIdentifier": "com.emergent.dualheartsapp.i36ij6",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Take a photo to try new outfits",
+        "NSPhotoLibraryUsageDescription": "Pick a photo to try new outfits"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#FFF9F8"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.emergent.dualheartsapp.i36ij6"
+      "package": "com.emergent.dualheartsapp.i36ij6",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -27,13 +35,21 @@
     },
     "plugins": [
       "expo-router",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Pick a photo to try new outfits",
+          "cameraPermission": "Take a photo to try new outfits"
+        }
+      ],
       [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-image.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#000000"
+          "backgroundColor": "#FFF9F8"
         }
       ]
     ],

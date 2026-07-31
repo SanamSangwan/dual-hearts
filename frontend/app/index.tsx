@@ -1,30 +1,25 @@
-import { Text, View, StyleSheet, Image } from "react-native";
-
-const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import { Redirect } from "expo-router";
+import { useAuth } from "@/src/auth";
+import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { colors } from "@/src/theme";
 
 export default function Index() {
-  console.log(EXPO_PUBLIC_BACKEND_URL, "EXPO_PUBLIC_BACKEND_URL");
-
-  return (
-    <View style={styles.container}>
-      <Image
-        source={require("../assets/images/app-image.png")}
-        style={styles.image}
-      />
-    </View>
-  );
+  const { ready, user } = useAuth();
+  if (!ready) {
+    return (
+      <View style={styles.loader}>
+        <ActivityIndicator color={colors.brand} size="large" />
+      </View>
+    );
+  }
+  return <Redirect href={user ? "/(tabs)" : "/(auth)/sign-in"} />;
 }
 
 const styles = StyleSheet.create({
-  container: {
+  loader: {
     flex: 1,
-    backgroundColor: "#0c0c0c",
     alignItems: "center",
     justifyContent: "center",
-  },
-  image: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "contain",
+    backgroundColor: colors.surface,
   },
 });
