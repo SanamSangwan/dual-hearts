@@ -28,6 +28,8 @@ JWT_SECRET_KEY = os.environ["JWT_SECRET_KEY"]
 JWT_ALGORITHM = os.environ.get("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "43200"))
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GMAIL_ADDRESS = os.environ.get("GMAIL_ADDRESS")
+GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD")
 
 # ---------- DB ----------
 client = AsyncIOMotorClient(MONGO_URL)
@@ -86,6 +88,7 @@ class RegisterIn(BaseModel):
     email: EmailStr
     password: str
     name: Optional[str] = None
+    accountType: str = "couple"  # "single" or "couple"
 
 class PairJoinIn(BaseModel):
     code: str
@@ -98,12 +101,76 @@ class WardrobeIn(BaseModel):
     imageBase64: str  # raw base64 (no data uri prefix)
     prompt: str
 
+# ---------- OTP Email Verification ----------
+import random
+import smtplib
+from email.mime.text import MIMEText
+
+class OtpRequestIn(BaseModel):
+    email: EmailStr
+
+class OtpVerifyIn(BaseModel):
+    email: EmailStr
+    code: str
+
+def send_otp_email(to_email: str, code: str):
+    msg = MIMEText(f"Your OurSpace verification code is: {code}\n\nThis code expires in 10 minutes.")
+    msg["Subject"] = "Your OurSpace verification code"
+    msg["From"] = GMAIL_ADDRESS
+    msg["To"] = to_email
+    with smtplib.SMTP("smtp.gmail.com", 587) as server:
+        server.starttls()
+        server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
+        server.send_message(msg)
+
+@api_router.post("/auth/send-otp")
+async def send_otp(body: OtpRequestIn):
+    email = body.email.lower()
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(400, "Email already registered")
+    code = f"{random.randint(0, 999999):06d}"
+    await db.otps.update_one(
+        {"email": email},
+        {"$set": {
+            "code": code,
+            "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
+            "verified": False,
+            "createdAt": now_utc().isoformat(),
+        }},
+        upsert=True,
+    )
+    try:
+        send_otp_email(email, code)
+    except Exception as e:
+        logger.exception("OTP email send failed")
+        raise HTTPException(502, f"Failed to send verification email: {str(e)[:120]}")
+    return {"ok": True}
+
+@api_router.post("/auth/verify-otp")
+async def verify_otp(body: OtpVerifyIn):
+    email = body.email.lower()
+    record = await db.otps.find_one({"email": email})
+    if not record:
+        raise HTTPException(400, "No verification code found, request a new one")
+    expires_at = datetime.fromisoformat(record["expiresAt"])
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(400, "Code expired, request a new one")
+    if record["code"] != body.code:
+        raise HTTPException(400, "Incorrect code")
+    await db.otps.update_one({"email": email}, {"$set": {"verified": True}})
+    return {"ok": True}
+
 # ---------- Auth ----------
 @api_router.post("/auth/register")
 async def register(body: RegisterIn):
     email = body.email.lower()
     if await db.users.find_one({"email": email}):
         raise HTTPException(400, "Email already registered")
+    if body.accountType not in ("single", "couple"):
+        raise HTTPException(400, "accountType must be 'single' or 'couple'")
+    otp_record = await db.otps.find_one({"email": email})
+    if not otp_record or not otp_record.get("verified"):
+        raise HTTPException(400, "Please verify your email with the code sent before registering")
     user_id = str(uuid.uuid4())
     doc = {
         "id": user_id,
@@ -111,6 +178,7 @@ async def register(body: RegisterIn):
         "name": body.name or email.split("@")[0],
         "passwordHash": hash_password(body.password),
         "avatarEmoji": "💗",
+        "accountType": body.accountType,
         "coupleId": None,
         "createdAt": now_utc().isoformat(),
     }
@@ -255,6 +323,120 @@ async def gesture_stats(user=Depends(get_current_user)):
         by_type[row["_id"]] = row["count"]
         total += row["count"]
     return {"total": total, "byType": by_type}
+
+# ---------- Singles: Profile, Swipe, Match, Chat ----------
+class SingleProfileIn(BaseModel):
+    bio: str = ""
+    age: int
+    photos: List[str] = []  # base64 images, small count expected
+
+class SwipeIn(BaseModel):
+    targetUserId: str
+    action: str  # "like" or "pass"
+
+class MessageIn(BaseModel):
+    matchId: str
+    text: str
+
+@api_router.post("/singles/profile")
+async def upsert_single_profile(body: SingleProfileIn, user=Depends(get_current_user)):
+    if body.age < 18:
+        raise HTTPException(400, "Must be 18 or older")
+    await db.single_profiles.update_one(
+        {"userId": user["id"]},
+        {"$set": {"bio": body.bio, "age": body.age, "photos": body.photos, "updatedAt": now_utc().isoformat()}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+@api_router.get("/singles/discover")
+async def discover_singles(user=Depends(get_current_user), limit: int = 20):
+    my_loc = await db.locations.find_one({"userId": user["id"]})
+    if not my_loc:
+        raise HTTPException(400, "Share your location first to discover nearby singles")
+    swiped_ids = [s["targetUserId"] async for s in db.swipes.find({"userId": user["id"]}, {"targetUserId": 1})]
+    blocked_ids = [b["blockedId"] async for b in db.blocks.find({"userId": user["id"]}, {"blockedId": 1})]
+    exclude_ids = swiped_ids + blocked_ids + [user["id"]]
+    eligible_user_ids = [u["id"] async for u in db.users.find(
+        {"accountType": "single", "coupleId": None, "id": {"$nin": exclude_ids}}, {"id": 1}
+    )]
+    profiles = await db.single_profiles.find({"userId": {"$in": eligible_user_ids}}, {"_id": 0}).limit(limit).to_list(length=limit)
+    # distance-only, never raw coordinates, computed server-side and returned as km
+    results = []
+    for p in profiles:
+        loc = await db.locations.find_one({"userId": p["userId"]})
+        dist_km = None
+        if loc:
+            from math import radians, sin, cos, sqrt, atan2
+            R = 6371
+            lat1, lon1 = radians(my_loc["lat"]), radians(my_loc["lng"])
+            lat2, lon2 = radians(loc["lat"]), radians(loc["lng"])
+            dlat, dlon = lat2 - lat1, lon2 - lon1
+            a = sin(dlat/2)**2 + cos(lat1)*cos(lat2)*sin(dlon/2)**2
+            dist_km = round(R * 2 * atan2(sqrt(a), sqrt(1-a)), 1)
+        results.append({**p, "distanceKm": dist_km})
+    return {"profiles": results}
+
+@api_router.post("/singles/swipe")
+async def swipe(body: SwipeIn, user=Depends(get_current_user)):
+    await db.swipes.insert_one({
+        "id": str(uuid.uuid4()), "userId": user["id"], "targetUserId": body.targetUserId,
+        "action": body.action, "createdAt": now_utc().isoformat(),
+    })
+    matched = False
+    match_id = None
+    if body.action == "like":
+        reciprocal = await db.swipes.find_one({
+            "userId": body.targetUserId, "targetUserId": user["id"], "action": "like"
+        })
+        if reciprocal:
+            matched = True
+            match_id = str(uuid.uuid4())
+            await db.matches.insert_one({
+                "id": match_id, "userIds": [user["id"], body.targetUserId],
+                "createdAt": now_utc().isoformat(),
+            })
+    return {"matched": matched, "matchId": match_id}
+
+@api_router.get("/singles/matches")
+async def list_matches(user=Depends(get_current_user)):
+    cursor = db.matches.find({"userIds": user["id"]}, {"_id": 0})
+    return {"matches": await cursor.to_list(length=100)}
+
+@api_router.post("/singles/message")
+async def send_message(body: MessageIn, user=Depends(get_current_user)):
+    match = await db.matches.find_one({"id": body.matchId, "userIds": user["id"]})
+    if not match:
+        raise HTTPException(404, "Match not found")
+    await db.messages.insert_one({
+        "id": str(uuid.uuid4()), "matchId": body.matchId, "senderId": user["id"],
+        "text": body.text, "createdAt": now_utc().isoformat(),
+    })
+    return {"ok": True}
+
+@api_router.get("/singles/messages/{match_id}")
+async def get_messages(match_id: str, user=Depends(get_current_user)):
+    match = await db.matches.find_one({"id": match_id, "userIds": user["id"]})
+    if not match:
+        raise HTTPException(404, "Match not found")
+    cursor = db.messages.find({"matchId": match_id}, {"_id": 0}).sort("createdAt", 1)
+    return {"messages": await cursor.to_list(length=500)}
+
+@api_router.post("/singles/report")
+async def report_user(targetUserId: str, reason: str, user=Depends(get_current_user)):
+    await db.reports.insert_one({
+        "id": str(uuid.uuid4()), "reporterId": user["id"], "targetUserId": targetUserId,
+        "reason": reason, "createdAt": now_utc().isoformat(), "status": "pending",
+    })
+    return {"ok": True}
+
+@api_router.post("/singles/block")
+async def block_user(targetUserId: str, user=Depends(get_current_user)):
+    await db.blocks.update_one(
+        {"userId": user["id"], "blockedId": targetUserId},
+        {"$set": {"createdAt": now_utc().isoformat()}}, upsert=True,
+    )
+    return {"ok": True}
 
 # ---------- Wardrobe (AI) ----------
 @api_router.post("/wardrobe/generate")
