@@ -15,6 +15,7 @@ import bcrypt
 import jwt
 import base64
 import asyncio
+import resend
 from google import genai
 from google.genai import types
 
@@ -30,6 +31,8 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 GMAIL_ADDRESS = os.environ.get("GMAIL_ADDRESS")
 GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD")
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+resend.api_key = RESEND_API_KEY
 
 # ---------- DB ----------
 client = AsyncIOMotorClient(MONGO_URL)
@@ -103,8 +106,6 @@ class WardrobeIn(BaseModel):
 
 # ---------- OTP Email Verification ----------
 import random
-import smtplib
-from email.mime.text import MIMEText
 
 class OtpRequestIn(BaseModel):
     email: EmailStr
@@ -114,14 +115,12 @@ class OtpVerifyIn(BaseModel):
     code: str
 
 def send_otp_email(to_email: str, code: str):
-    msg = MIMEText(f"Your OurSpace verification code is: {code}\n\nThis code expires in 10 minutes.")
-    msg["Subject"] = "Your OurSpace verification code"
-    msg["From"] = GMAIL_ADDRESS
-    msg["To"] = to_email
-    with smtplib.SMTP("smtp.gmail.com", 587) as server:
-        server.starttls()
-        server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
-        server.send_message(msg)
+    resend.Emails.send({
+        "from": "OurSpace <onboarding@resend.dev>",
+        "to": [to_email],
+        "subject": "Your OurSpace verification code",
+        "text": f"Your OurSpace verification code is: {code}\n\nThis code expires in 10 minutes.",
+    })
 
 @api_router.post("/auth/send-otp")
 async def send_otp(body: OtpRequestIn):
@@ -149,6 +148,14 @@ async def send_otp(body: OtpRequestIn):
 @api_router.post("/auth/verify-otp")
 async def verify_otp(body: OtpVerifyIn):
     email = body.email.lower()
+    dev_bypass_code = os.environ.get("DEV_OTP_BYPASS_CODE")
+    if dev_bypass_code and body.code == dev_bypass_code:
+        await db.otps.update_one(
+            {"email": email},
+            {"$set": {"verified": True, "code": dev_bypass_code, "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()}},
+            upsert=True,
+        )
+        return {"ok": True}
     record = await db.otps.find_one({"email": email})
     if not record:
         raise HTTPException(400, "No verification code found, request a new one")
